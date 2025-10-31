@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎯 เกมทายตัวเลข Mobile-Friendly</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Prompt&display=swap');
+
+body, html {
+  margin:0; padding:0;
+  font-family:'Prompt', sans-serif;
+  width:100%; height:100%;
+  background: linear-gradient(135deg,#6c5ce7,#00cec9);
+  transition: background 1s;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+
+#menu, #game, #resultScreen {
+  position:absolute;
+  top:0; left:0; width:100%; height:100%;
+  display:flex; flex-direction:column;
+  justify-content:center; align-items:center;
+  transition:opacity 0.5s;
+  padding:20px;
+  box-sizing:border-box;
+}
+
+#menu { z-index:2; }
+#game, #resultScreen { z-index:1; opacity:0; pointer-events:none; }
+
+button, select, input {
+  font-size:1.2em;
+  padding:12px 20px;
+  margin:8px;
+  border-radius:12px;
+  border:none;
+  cursor:pointer;
+  width:80%;
+  max-width:300px;
+  text-align:center;
+}
+
+button { background:#00cec9; color:white; }
+button:hover { background:#00b894; }
+
+input[type="number"] { text-align:center; }
+
+h1,h2,h3 { margin:5px; text-align:center; word-break:break-word; }
+
+.win { color:#00ffcc; animation: glow 1s infinite alternate; }
+.lose { color:#ff7675; }
+
+@keyframes glow {
+  from { text-shadow:0 0 10px #00ffcc; }
+  to { text-shadow:0 0 25px #2ecc71,0 0 45px #00cec9; }
+}
+
+.leaderboard {
+  margin-top:15px;
+  background: rgba(0,0,0,0.2);
+  border-radius:10px;
+  padding:10px;
+  width:80%;
+  max-width:300px;
+  text-align:left;
+  font-size:0.9em;
+}
+
+/* Responsive ปรับฟอนต์บนมือถือ */
+@media(max-width:480px){
+  h1{ font-size:1.8em; }
+  h2{ font-size:1.4em; }
+  h3{ font-size:1.2em; }
+  button, select, input{ font-size:1em; padding:10px; width:90%; }
+}
+</style>
+</head>
+<body>
+
+<!-- หน้าเมนู -->
+<div id="menu">
+  <h1>🎯 เกมทายตัวเลข</h1>
+  <p>เลือกโหมดผู้เล่น:</p>
+  <select id="playerModeMenu">
+    <option value="1">ผู้เล่น 1 คน</option>
+    <option value="2">ผู้เล่น 2 คน</option>
+  </select>
+  <p>เลือกระดับความยาก:</p>
+  <select id="difficultyMenu">
+    <option value="easy">ง่าย (1–100)</option>
+    <option value="hard">ยาก (1–1000)</option>
+  </select>
+  <button onclick="startGame()">เริ่มเกม</button>
+</div>
+
+<!-- หน้าเกม -->
+<div id="game">
+  <h2 id="rangeText">สุ่มตัวเลขระหว่าง 1 ถึง 100</h2>
+  <h3 id="playerTurn">🎮 Player 1 ถึงตาคุณ!</h3>
+
+  <input type="number" id="guess" placeholder="ใส่ตัวเลขของคุณ">
+  <button onclick="checkGuess()">ทาย!</button>
+
+  <p>จำนวนครั้งที่ทาย: <span id="count">0</span> / <span id="max">15</span></p>
+  <p>คะแนน: <span id="score">0</span></p>
+
+  <!-- ประวัติการทาย -->
+  <div id="guessHistoryContainer">
+    <h3>📜 ประวัติการทาย</h3>
+    <ul id="guessHistoryList"></ul>
+  </div>
+</div>
+
+<!-- หน้าแสดงผล -->
+<div id="resultScreen">
+  <h2 id="resultMessage"></h2>
+  <p>คะแนนของคุณ: <span id="finalScore">0</span></p>
+  <p>สถิติสูงสุด: <span id="highScore">0</span></p>
+  <div class="leaderboard">
+    <h3>🏆 Leaderboard</h3>
+    <ul id="leaderboardList"></ul>
+  </div>
+  <button onclick="backToMenu()">กลับเมนู</button>
+</div>
+
+<!-- เสียง -->
+<audio id="winSound" src="https://cdn.pixabay.com/download/audio/2021/08/04/audio_c2a35b8b1c.mp3?filename=success-1-6297.mp3"></audio>
+<audio id="loseSound" src="https://cdn.pixabay.com/download/audio/2021/09/01/audio_b8d3f7cc54.mp3?filename=failure-1-89170.mp3"></audio>
+
+<script>
+let secretNumber, guessCount=0, maxGuesses=15, maxNumber=100;
+let score=0, highScore=0, currentPlayer=1, totalPlayers=1;
+let playerScores=[0,0], guessHistory=[];
+let leaderboard=JSON.parse(localStorage.getItem("leaderboard")||"[]");
+const winSound=document.getElementById("winSound");
+const loseSound=document.getElementById("loseSound");
+
+if(localStorage.getItem("highScore")) highScore=parseInt(localStorage.getItem("highScore"));
+
+function startGame(){
+  totalPlayers=parseInt(document.getElementById("playerModeMenu").value);
+  const diff=document.getElementById("difficultyMenu").value;
+  if(diff==="easy"){maxNumber=100; maxGuesses=15;} else {maxNumber=1000; maxGuesses=25;}
+  document.getElementById("max").textContent=maxGuesses;
+  document.getElementById("rangeText").textContent=`สุ่มตัวเลขระหว่าง 1 ถึง ${maxNumber}`;
+  secretNumber=Math.floor(Math.random()*maxNumber)+1;
+  guessCount=0; score=0; currentPlayer=1; playerScores=[0,0]; guessHistory=[];
+  document.getElementById("count").textContent=0;
+  document.getElementById("score").textContent=0;
+  document.getElementById("playerTurn").textContent=`🎮 Player ${currentPlayer} ถึงตาคุณ!`;
+  document.getElementById("guessHistoryList").innerHTML="";
+  document.getElementById("menu").style.opacity=0; document.getElementById("menu").style.pointerEvents="none";
+  document.getElementById("game").style.opacity=1; document.getElementById("game").style.pointerEvents="auto";
+  document.body.style.background = "linear-gradient(135deg, #6c5ce7, #00cec9)";
+}
+
+function checkGuess(){
+  const guess=parseInt(document.getElementById("guess").value);
+  if(!guess||guess<1||guess>maxNumber){alert(`ใส่เลขระหว่าง 1-${maxNumber}`); return;}
+  guessCount++;
+  document.getElementById("count").textContent=guessCount;
+
+  let hint="";
+  if(guess===secretNumber){
+    hint="🎉 ถูกต้อง!";
+    score=(maxGuesses-guessCount+1)*10;
+    playerScores[currentPlayer-1]=score;
+    winSound.play();
+    document.body.style.background="linear-gradient(135deg, #00b894, #55efc4)";
+    showResult(`🎉 Player ${currentPlayer} ชนะ!`);
+  } else if(guess<secretNumber){hint="📈 มากกว่านี้อีก!";}
+  else {hint="📉 น้อยกว่านี้อีก!";}
+
+  // บันทึกประวัติการทาย
+  guessHistory.push({number:guess,hint:hint});
+  updateGuessHistoryDisplay();
+
+  if(guessCount>=maxGuesses && guess!==secretNumber){
+    loseSound.play();
+    showResult(`😢 หมดรอบ! ตัวเลขคือ ${secretNumber}`);
+  }
+
+  document.getElementById("score").textContent=score;
+}
+
+function updateGuessHistoryDisplay(){
+  const list=document.getElementById("guessHistoryList");
+  list.innerHTML=guessHistory.map(g=>`<li>${g.number} → ${g.hint}</li>`).join("");
+}
+
+function showResult(message){
+  if(score>highScore){highScore=score; localStorage.setItem("highScore",highScore);}
+  document.getElementById("finalScore").textContent=score;
+  document.getElementById("highScore").textContent=highScore;
+  updateLeaderboard(score);
+  document.getElementById("resultMessage").textContent=message;
+  document.getElementById("game").style.opacity=0; document.getElementById("game").style.pointerEvents="none";
+  document.getElementById("resultScreen").style.opacity=1; document.getElementById("resultScreen").style.pointerEvents="auto";
+}
+
+function updateLeaderboard(score){
+  let name=`Player ${currentPlayer}`;
+  leaderboard.push({name,score,date:new Date().toLocaleString()});
+  leaderboard.sort((a,b)=>b.score-a.score);
+  leaderboard=leaderboard.slice(0,5);
+  localStorage.setItem("leaderboard",JSON.stringify(leaderboard));
+  const list=document.getElementById("leaderboardList");
+  list.innerHTML=leaderboard.map(e=>`<li>${e.name} — ${e.score} คะแนน (${e.date})</li>`).join("");
+}
+
+function backToMenu(){
+  document.getElementById("menu").style.opacity=1; document.getElementById("menu").style.pointerEvents="auto";
+  document.getElementById("resultScreen").style.opacity=0; document.getElementById("resultScreen").style.pointerEvents="none";
+}
+</script>
+
+</body>
+</html>
